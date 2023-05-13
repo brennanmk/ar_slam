@@ -1,0 +1,11 @@
+<launch>
+    <arg name="tcp_ip" default="0.0.0.0"/>
+    <arg name="tcp_port" default="10000"/>
+
+    <include file="$(find ros_tcp_endpoint)/launch/endpoint.launch">
+        <arg name="tcp_ip" value="$(arg tcp_ip)"/>
+        <arg name="tcp_port" value="$(arg tcp_port)"/>
+    </include>
+
+    <node name="camera_info_publisher" pkg="ar_slam" type="camera_info_publisher.py"/>
+</launch>
