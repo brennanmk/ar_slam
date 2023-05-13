@@ -1,10 +1,12 @@
 /*
 Brennan Miller-Klugman
 
+depthAPIImage is a modified version of ImageCollection that is used to collect both images from ARCameraManager and depth images from googles depth api and publishes them to ROS
+
 Sources:
     https://github.com/Unity-Technologies/ROS-TCP-Connector/issues/223
+    https://docs.unity3d.com/ScriptReference/ImageConversion.EncodeToJPG.html
     https://docs.unity.cn/Packages/com.unity.xr.arfoundation@4.2/manual/cpu-camera-image.html
-    https://github.com/Unity-Technologies/ROS-TCP-Connector/issues/223
 */
 
 using System;
@@ -19,25 +21,27 @@ using UnityEngine.XR.ARSubsystems;
 using Unity.Robotics.ROSTCPConnector;
 using img = RosMessageTypes.Sensor.CompressedImageMsg;
 using RosMessageTypes.Std;
-public class depthImage : MonoBehaviour
+public class depthAPIImage : MonoBehaviour
 {
 
     ROSConnection ros;
     Texture2D depth_texture, camera_texture;
 
+    // Adjustable parameters
     public string DepthtopicName = "image/depth/compressed";
     public string CameraTopicName = "image/compressed";
-
-    // Limit the number of points to bound the performance cost of rendering the point cloud.
-
+    public int output_width = 640;
+    public int output_height = 480;
     private ARCameraManager cameraManager;
     private AROcclusionManager depthManager; 
     private void Start()
     {
+        // Initialize ROS and register publisher
         ros = ROSConnection.GetOrCreateInstance();
         ros.RegisterPublisher<img>(DepthtopicName);
         ros.RegisterPublisher<img>(CameraTopicName);
 
+        // Initialize ARCameraManager and AROcclusionManager
         depthManager = FindObjectOfType<AROcclusionManager>();
         cameraManager = FindObjectOfType<ARCameraManager>();
         cameraManager.frameReceived += OnCameraFrameReceived;
@@ -48,14 +52,12 @@ public class depthImage : MonoBehaviour
 
     void OnCameraFrameReceived(ARCameraFrameEventArgs eventArgs)
     {   
-        // Get information about the device camera image.
+        // When a depth frame is recieved, try to aquire and publish the image
         if (depthManager.TryAcquireEnvironmentDepthCpuImage(out XRCpuImage depth_image) && cameraManager.TryAcquireLatestCpuImage(out XRCpuImage camera_image))
         {
-            // If successful, launch a coroutine that waits for the image
-            // to be ready, then apply it to a texture.
+
             StartCoroutine(ProcessImage(depth_image, camera_image));
 
-            // It's safe to dispose the image before the async operation completes.
             depth_image.Dispose();
             camera_image.Dispose();
         }
@@ -66,17 +68,14 @@ public class depthImage : MonoBehaviour
         var depth_width = depth_image.width;
         var depth_height = depth_image.height;
 
-        // Create the async conversion request.
+        // Convert the image & depth image to an RGB texture
 
         var depth_request = depth_image.ConvertAsync(new XRCpuImage.ConversionParams
         {
-            // Use the full image.
             inputRect = new RectInt(0, 0, depth_image.width, depth_image.height),
 
-            // Downsample by 2.
             outputDimensions = new Vector2Int(depth_image.width, depth_image.height),
 
-            // Color image format.
             outputFormat = TextureFormat.R16,
 
             transformation = XRCpuImage.Transformation.MirrorX
@@ -84,13 +83,10 @@ public class depthImage : MonoBehaviour
 
         var camera_request = camera_image.ConvertAsync(new XRCpuImage.ConversionParams
         {
-            // Use the full image.
             inputRect = new RectInt(0, 0, camera_image.width, camera_image.height),
 
-            // Downsample by 2.
-            outputDimensions = new Vector2Int(depth_width, depth_height),
+            outputDimensions = new Vector2Int(output_width, output_height),
 
-            // Color image format.
             outputFormat = TextureFormat.RGB24,
 
             transformation = XRCpuImage.Transformation.MirrorX
@@ -104,10 +100,8 @@ public class depthImage : MonoBehaviour
         // Check status to see if the conversion completed successfully.
         if (depth_request.status != XRCpuImage.AsyncConversionStatus.Ready || camera_request.status != XRCpuImage.AsyncConversionStatus.Ready)
         {
-            // Something went wrong.
             Debug.LogErrorFormat("Request failed with status {0}", depth_request.status);
 
-            // Dispose even if there is an error.
             depth_request.Dispose();
             camera_request.Dispose();
             yield break;
@@ -116,7 +110,6 @@ public class depthImage : MonoBehaviour
         var rawDepthData = depth_request.GetData<byte>();
 
 
-        // Create a texture if necessary.
         if (depth_texture == null)
         {
             depth_texture = new Texture2D(
@@ -141,12 +134,14 @@ public class depthImage : MonoBehaviour
         camera_texture.LoadRawTextureData(camera_request.GetData<byte>());
         camera_texture.Apply();
 
+        // Encode texture into JPG
         byte[] depth_bytes = ImageConversion.EncodeToJPG(depth_texture);
         byte[] camera_bytes = ImageConversion.EncodeToJPG(camera_texture);
 
         Destroy(depth_texture);
         Destroy(camera_texture);
 
+        // Publish the imageS
         img depth = new img(
             header: new HeaderMsg(),
             format: "jpeg",
@@ -162,8 +157,6 @@ public class depthImage : MonoBehaviour
         ros.Publish(DepthtopicName, depth);
         ros.Publish(CameraTopicName, camera);
 
-        // Need to dispose the request to delete resources associated
-        // with the request, including the raw data.
         depth_request.Dispose();
         camera_request.Dispose();
     }

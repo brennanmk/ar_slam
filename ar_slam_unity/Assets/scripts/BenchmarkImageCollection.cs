@@ -1,7 +1,7 @@
 /*
 Brennan Miller-Klugman
 
-ImageCollection is a script that is used to collect images from ARCameraManager and publish them to ROS
+BenchmarkImageCollection is a modified version of ImageCollection that is used along side the ros metrics node to record metrics
 
 Sources:
     https://github.com/Unity-Technologies/ROS-TCP-Connector/issues/223
@@ -21,22 +21,28 @@ using UnityEngine.XR.ARSubsystems;
 using Unity.Robotics.ROSTCPConnector;
 using img = RosMessageTypes.Sensor.CompressedImageMsg;
 using RosMessageTypes.Std;
-public class ImageCollection : MonoBehaviour
+
+public class BenchmarkImageCollection : MonoBehaviour
 {
     ROSConnection ros;
     Texture2D m_Texture;
 
     // Adjustable parameters
-    public string topicName = "image/compressed";
+    public string imageTopicName = "image/compressed";
+    public string ackedTopicName = "/ached";
+
     public int output_width = 640;
     public int output_height = 480;
     private ARCameraManager cameraManager;
 
+    private bool allow_publish = true;
+
     private void Start()
-    {
+    {        
         // Initialize ROS and register publisher
         ros = ROSConnection.GetOrCreateInstance();
-        ros.RegisterPublisher<img>(topicName);
+        ros.RegisterPublisher<img>(imageTopicName);
+        ros.Subscribe<EmptyMsg>(ackedTopicName, allow_message);
 
         // Initialize ARCameraManager
         cameraManager = FindObjectOfType<ARCameraManager>();
@@ -45,15 +51,25 @@ public class ImageCollection : MonoBehaviour
     }
 
 
+    void allow_message(EmptyMsg msg)
+    {
+        // When the acked topic is recieved, allow the next image to be published
+        this.allow_publish = true;
+    }
+
     void OnCameraFrameReceived(ARCameraFrameEventArgs eventArgs)
     {   
-        // When a camera frame is recieved, try to aquire and publish the image
-        if (cameraManager.TryAcquireLatestCpuImage(out XRCpuImage image))
+        // check if image can be published
+        if (this.allow_publish)
         {
+            // When a camera frame is recieved, try to aquire and publish the image
+            if (cameraManager.TryAcquireLatestCpuImage(out XRCpuImage image))
+            {
+                this.allow_publish = false;
+                StartCoroutine(ProcessImage(image));
 
-            StartCoroutine(ProcessImage(image));
-
-            image.Dispose();
+                image.Dispose();
+            }
         }
     }
 
@@ -110,7 +126,7 @@ public class ImageCollection : MonoBehaviour
             data: bytes
         );
 
-        ros.Publish(topicName, msg);
+        ros.Publish(imageTopicName, msg);
 
         request.Dispose();
     }
