@@ -1,0 +1,13 @@
+# Hacked from:
+#   https://www.toptal.com/developers/gitignore/api/emacs,visualstudiocode
+#   https://www.toptal.com/developers/gitignore?templates=emacs,visualstudiocode
+
+### Emacs ###
+# -*- mode: gitignore; -*-
+*~
+\#*\#
+.\#*
+
+### VisualStudioCode ###
+.vscode/*
+
