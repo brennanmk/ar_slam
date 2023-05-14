@@ -11,12 +11,12 @@ Referances:
 
 import torch
 
-from MiDaS.midas.model_loader import default_models, load_model
+from midas.model_loader import default_models, load_model
 
 import rospy
 from cv_bridge import CvBridge
 from sensor_msgs.msg import Image
-from aligned_camera_info_publisher import camera_info_publisher
+from aligned_camera_info_publisher import aligned_camera_info_publisher
 
 
 class midas_ros:
@@ -32,7 +32,7 @@ class midas_ros:
         rospy.init_node('midas_ros')
         self.first_execution = True
 
-        self.camera_info_pub = camera_info_publisher()
+        self.camera_info_pub = aligned_camera_info_publisher()
 
         torch.backends.cudnn.enabled = True
         torch.backends.cudnn.benchmark = True

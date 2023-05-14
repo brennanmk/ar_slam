@@ -51,7 +51,7 @@ class camera_info_publisher:
         Use rospy_message_converter to convert json to ros message
         '''
 
-        with open('/home/brennan/catkin_ws/src/ar_slam/src/info.json', 'r') as openfile:
+        with open('/home/brennan/catkin_ws/src/ar_slam/ar_slam_ros/src/info.json', 'r') as openfile:
             data = json.load(openfile)
             self.msg = json_message_converter.convert_json_to_ros_message(
                 'sensor_msgs/CameraInfo', json.dumps(data))
