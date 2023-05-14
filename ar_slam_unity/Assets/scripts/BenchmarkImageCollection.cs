@@ -31,8 +31,8 @@ public class BenchmarkImageCollection : MonoBehaviour
     public string imageTopicName = "image/compressed";
     public string ackedTopicName = "/ached";
 
-    public int output_width = 640;
-    public int output_height = 480;
+    public int output_width;
+    public int output_height;
     private ARCameraManager cameraManager;
 
     private bool allow_publish = true;
